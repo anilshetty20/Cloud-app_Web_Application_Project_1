@@ -25,7 +25,7 @@ function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Cloud App 🚀</h1>
+      <h1>Cloud Application 🚀</h1>
 
       <input
         value={name}
