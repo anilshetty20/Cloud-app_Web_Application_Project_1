@@ -27,68 +27,79 @@ jobs:
         run: docker push ${{ secrets.DOCKER_USERNAME }}/cloud-backend
 
       # 5️⃣ Update Launch Template with new Docker image
-      - name: Update Launch Template UserData
+      - name: Update Launch Template and Refresh ASG
         env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          LAUNCH_TEMPLATE_ID: ${{ secrets.LAUNCH_TEMPLATE_ID }}
+          ASG_NAME: ${{ secrets.ASG_NAME }}
         run: |
+          # Encode user-data
           USER_DATA=$(cat <<'EOF' | base64 -w 0
           #!/bin/bash
           apt-get update -y
           apt-get install -y docker.io
           systemctl start docker
           systemctl enable docker
-          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker pull ${{ secrets.DOCKER_USERNAME }}/cloud-backend:latest
+          docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+          docker pull $DOCKER_USERNAME/cloud-backend:latest
           docker stop backend || true
           docker rm backend || true
           docker run -d --name backend -p 5000:5000 \
-            -e DB_HOST=${{ secrets.DB_HOST }} \
-            -e DB_USER=${{ secrets.DB_USER }} \
-            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-            -e DB_NAME=${{ secrets.DB_NAME }} \
-            ${{ secrets.DOCKER_USERNAME }}/cloud-backend:latest
+            -e DB_HOST=$DB_HOST \
+            -e DB_USER=$DB_USER \
+            -e DB_PASSWORD=$DB_PASSWORD \
+            -e DB_NAME=$DB_NAME \
+            $DOCKER_USERNAME/cloud-backend:latest
           EOF
           )
+
+          # Create new Launch Template version
           aws ec2 create-launch-template-version \
-            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --launch-template-id $LAUNCH_TEMPLATE_ID \
             --source-version '$Latest' \
             --launch-template-data "{\"UserData\":\"$USER_DATA\"}" \
             --region $AWS_REGION
-            
+
+          # Get the latest version number
           LATEST=$(aws ec2 describe-launch-template-versions \
-            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --launch-template-id $LAUNCH_TEMPLATE_ID \
             --query 'LaunchTemplateVersions[-1].VersionNumber' \
             --output text \
             --region $AWS_REGION)
 
+          # Set the new version as default
           aws ec2 modify-launch-template \
-            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --launch-template-id $LAUNCH_TEMPLATE_ID \
             --default-version $LATEST \
             --region $AWS_REGION
 
-      # 6️⃣ Trigger Auto Scaling instance refresh
-      - name: Refresh Auto Scaling Group instances
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-        run: |
+          # Refresh Auto Scaling Group to pick up new template
           aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name ${{ secrets.ASG_NAME }} \
+            --auto-scaling-group-name $ASG_NAME \
             --preferences MinHealthyPercentage=50,InstanceWarmup=60 \
             --region $AWS_REGION
 
-      # 7️⃣ Frontend: Install dependencies
+      # 6️⃣ Frontend: Install dependencies
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
 
-      # 8️⃣ Frontend: Build production
+      # 7️⃣ Frontend: Build production
       - name: Build frontend
         run: |
           cd frontend
           npm run build
 
-      # 9️⃣ Upload frontend build to S3
+      # 8️⃣ Upload frontend build to S3
       - name: Deploy frontend to S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         with:
@@ -100,13 +111,13 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SOURCE_DIR: frontend/build
 
-      # 🔟 CloudFront invalidation
+      # 9️⃣ CloudFront invalidation
       - name: Invalidate CloudFront cache
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID }} \
             --paths "/*"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
