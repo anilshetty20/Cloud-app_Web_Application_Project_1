@@ -10,54 +10,78 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Docker login
+      # 2️⃣ Docker login
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      # Build backend image
-      - name: Build Docker image
+      # 3️⃣ Build backend Docker image
+      - name: Build backend image
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/cloud-backend ./backend
 
-      # Push image
-      - name: Push Docker image
+      # 4️⃣ Push backend Docker image
+      - name: Push backend image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/cloud-backend
 
-      # DEPLOY TO EC2 (BACKEND)
-      - name: Deploy Backend on EC2
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/cloud-backend
-            docker stop backend-container || true
-            docker rm backend-container || true
-            docker run -d -p 5000:5000 \
-              --name backend-container \
-              -e DB_HOST=cloudapp-db.c81qw2c8qcbp.us-east-1.rds.amazonaws.com \
-              -e DB_USER=postgres \
-              -e DB_PASSWORD=postgres123 \
-              -e DB_NAME=cloudapp \
-              ${{ secrets.DOCKER_USERNAME }}/cloud-backend
+      # 5️⃣ Update Launch Template with new Docker image
+      - name: Update Launch Template UserData
+        run: |
+          USER_DATA=$(cat <<'EOF' | base64 -w 0
+          #!/bin/bash
+          apt-get update -y
+          apt-get install -y docker.io
+          systemctl start docker
+          systemctl enable docker
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker pull ${{ secrets.DOCKER_USERNAME }}/cloud-backend:latest
+          docker stop backend || true
+          docker rm backend || true
+          docker run -d --name backend -p 5000:5000 \
+            -e DB_HOST=${{ secrets.DB_HOST }} \
+            -e DB_USER=${{ secrets.DB_USER }} \
+            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            -e DB_NAME=${{ secrets.DB_NAME }} \
+            ${{ secrets.DOCKER_USERNAME }}/cloud-backend:latest
+          EOF
+          )
+          # Create a new Launch Template version
+          aws ec2 create-launch-template-version \
+            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --source-version '$Latest' \
+            --launch-template-data "{\"UserData\":\"$USER_DATA\"}"
+          
+          # Set the new version as default
+          LATEST=$(aws ec2 describe-launch-template-versions \
+            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --query 'LaunchTemplateVersions[-1].VersionNumber' \
+            --output text)
+          aws ec2 modify-launch-template \
+            --launch-template-id ${{ secrets.LAUNCH_TEMPLATE_ID }} \
+            --default-version $LATEST
 
-      # 🔹 Install frontend deps
+      # 6️⃣ Trigger Auto Scaling instance refresh
+      - name: Refresh Auto Scaling Group instances
+        run: |
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name ${{ secrets.ASG_NAME }} \
+            --preferences MinHealthyPercentage=50,InstanceWarmup=60
+
+      # 7️⃣ Frontend: Install dependencies
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm install
 
-      # 🔹 Build frontend
+      # 8️⃣ Frontend: Build production
       - name: Build frontend
         run: |
           cd frontend
           npm run build
 
-      # 🔹 Upload to S3
+      # 9️⃣ Upload frontend build to S3
       - name: Deploy frontend to S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         with:
@@ -69,8 +93,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SOURCE_DIR: frontend/build
 
-      # OPTIONAL: Invalidate CloudFront
-      - name: Invalidate CloudFront
+      # 🔟 CloudFront invalidation
+      - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DIST_ID }} \
