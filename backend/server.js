@@ -29,7 +29,7 @@ app.get('/', (req, res) => {
 });
 
 // ✅ Add user (SAFE VERSION)
-app.post('/users', async (req, res) => {
+app.post('/api/users', async (req, res) => {
   try {
     // Validation
     if (!req.body || !req.body.name) {
@@ -51,7 +51,7 @@ app.post('/users', async (req, res) => {
 });
 
 // ✅ Get users
-app.get('/users', async (req, res) => {
+app.get('/api/users', async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM users");
     res.json(result.rows);

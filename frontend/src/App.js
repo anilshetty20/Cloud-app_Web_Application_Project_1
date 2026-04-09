@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 
 // ❗ NO trailing slash here
-const API = "https://d1bhb9ylvc8jrn.cloudfront.net";
+const API = "https://d2hdun83eozf5x.cloudfront.net/api";
 
 function App() {
   const [name, setName] = useState("");
