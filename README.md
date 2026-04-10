@@ -1,128 +1,94 @@
-CloudApp Project – Scalable Full Stack Deployment on AWS
-📌 Overview
+<h1>☁️ CloudApp Project – AWS Full Stack Deployment</h1>
 
-This project demonstrates a production-ready cloud architecture for deploying a full-stack application using AWS, Docker, and CI/CD.
+<h2>📌 Overview</h2>
+<p>This project demonstrates a scalable and secure cloud architecture using AWS and CI/CD.</p>
 
-Frontend: React app hosted on Amazon S3 and delivered via CloudFront
-Backend: Dockerized application running on EC2 (Auto Scaling Group)
-Database: PostgreSQL on Amazon RDS
-CI/CD: GitHub Actions with Docker Hub
-Networking: Secure VPC with public and private subnets
-🧭 Architecture Flow
-User → CloudFront → S3 (Frontend)
-                  ↓
-             /api/* requests
-                  ↓
-        CloudFront → ALB → EC2 (Docker Backend)
-                                   ↓
-                                 RDS
-🌐 Networking Setup
-VPC Design
-1 VPC with 4 subnets:
-2 Public Subnets → ALB, NAT Gateway
-2 Private Subnets → EC2, RDS
-Route Tables
+<ul>
+  <li><b>Frontend:</b> React (S3 + CloudFront)</li>
+  <li><b>Backend:</b> Docker (EC2 + Auto Scaling)</li>
+  <li><b>Database:</b> PostgreSQL (RDS)</li>
+  <li><b>CI/CD:</b> GitHub Actions</li>
+</ul>
 
-Public Route Table
+<hr>
 
-Route: 0.0.0.0/0 → Internet Gateway
+<h2>🌐 Networking</h2>
 
-Private Route Table
+<h3>Subnets</h3>
+<ul>
+  <li>Public Subnets → ALB, NAT Gateway</li>
+  <li>Private Subnets → EC2, RDS</li>
+</ul>
 
-Route: 0.0.0.0/0 → NAT Gateway
-Why this setup?
-Public subnets allow internet-facing services
-Private subnets secure backend and database
-NAT Gateway enables outbound internet access for private instances
-🔐 Security Configuration
-Security Groups
+<h3>Route Tables</h3>
+<p><b>Public:</b> 0.0.0.0/0 → Internet Gateway</p>
+<p><b>Private:</b> 0.0.0.0/0 → NAT Gateway</p>
 
-1. ALB Security Group
+<hr>
 
-Allows HTTP (80) and HTTPS (443) from the internet
+<h2>🔐 Security Groups</h2>
 
-2. EC2 Security Group
+<ul>
+  <li><b>ALB:</b> HTTP (80), HTTPS (443)</li>
+  <li><b>EC2:</b> Port 5000 only from ALB</li>
+  <li><b>RDS:</b> Port 5432 only from EC2</li>
+</ul>
 
-Allows port 5000 only from ALB
+<p><b>Security Strategy:</b></p>
+<ul>
+  <li>Backend is not publicly accessible</li>
+  <li>Database is private</li>
+  <li>Access restricted between layers</li>
+</ul>
 
-3. RDS Security Group
+<hr>
 
-Allows PostgreSQL (5432) only from EC2
-Security Strategy
-Backend is not publicly accessible
-Database is fully private
-Access is restricted between layers
-⚙️ Compute Layer
-EC2 with Auto Scaling Group
-Automatically scales based on traffic
-Ensures high availability and fault tolerance
-Launch Template
-Defines EC2 configuration
-Includes Docker setup and startup script
-User Data Script
-Installs Docker
-Pulls latest backend image
-Runs the container
-⚖️ Load Balancing
-Application Load Balancer (ALB)
-Distributes incoming traffic across EC2 instances
-Acts as a single entry point for backend
-Target Group
-Routes requests to healthy EC2 instances
-Performs health checks
-🗄 Database Layer
-Amazon RDS (PostgreSQL)
-Managed relational database
-Automated backups
-Secure and scalable
-🎨 Frontend Deployment
-Amazon S3
-Hosts static frontend files
-CloudFront (CDN)
-Delivers content globally with low latency
-Caches static content
-🔗 Frontend–Backend Integration
-CloudFront Configuration
-Origin 1: S3 (Frontend)
-Origin 2: ALB (Backend)
-Behavior Rules
-/api/* → Routed to ALB
-/* → Routed to S3
-Cache Policy
-Disabled for /api/* to ensure real-time API responses
-🐳 Docker Implementation
-Purpose
-Ensures consistency across environments
-Simplifies deployment process
-Workflow
-Build Docker image
-Push image to Docker Hub
-EC2 instances pull the latest image during deployment
-🔁 CI/CD Pipeline (GitHub Actions)
-Trigger
-Runs on push to the main branch
-Backend Deployment Steps
-Build Docker image
-Push to Docker Hub
-Update Launch Template
-Refresh Auto Scaling Group
-Frontend Deployment Steps
-Install dependencies
-Build production files
-Upload to S3
-Invalidate CloudFront cache
-🚀 Key Features
-Fully automated CI/CD pipeline
-Scalable backend using Auto Scaling
-Secure VPC architecture
-Fast content delivery via CDN
-Containerized backend with Docker
-Zero manual deployment
-🧠 DevOps Concepts Used
-Continuous Integration and Deployment (CI/CD)
-Docker Containerization
-Immutable Infrastructure
-Load Balancing
-Auto Scaling
-CDN Caching Strategy
-Infrastructure Automation (AWS CLI)
+<h2>⚙️ Compute Layer</h2>
+<ul>
+  <li>EC2 with Auto Scaling for scalability</li>
+  <li>Launch Template for configuration</li>
+  <li>User Data script for Docker setup</li>
+</ul>
+
+<hr>
+
+<h2>⚖️ Load Balancer</h2>
+<ul>
+  <li>Application Load Balancer distributes traffic</li>
+  <li>Target Group performs health checks</li>
+</ul>
+
+<hr>
+
+<h2>🗄 Database</h2>
+<p>Amazon RDS (PostgreSQL) – Managed, secure, scalable</p>
+
+<hr>
+
+<h2>🎨 Frontend</h2>
+<ul>
+  <li>S3 for static hosting</li>
+  <li>CloudFront for CDN</li>
+</ul>
+
+<hr>
+
+<h2>🐳 CI/CD Pipeline</h2>
+<ol>
+  <li>Push code to GitHub</li>
+  <li>Build Docker image</li>
+  <li>Push to Docker Hub</li>
+  <li>Update Launch Template</li>
+  <li>Refresh Auto Scaling Group</li>
+  <li>Deploy frontend to S3</li>
+  <li>Invalidate CloudFront cache</li>
+</ol>
+
+<hr>
+
+<h2>🎤 Interview Summary</h2>
+<p>
+This project uses a cloud-native architecture where the frontend is delivered via CloudFront,
+the backend runs on Docker containers in EC2 with Auto Scaling, and the database is managed in RDS.
+CI/CD is automated using GitHub Actions.
+</p>
